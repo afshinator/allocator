@@ -10,3 +10,7 @@ You work at a port and are in charge of vessel allocations. Each day, you are gi
  3) Assign containers to a vessel
  4) "Save" a vessel plan by posting to the API
  5) View any vessel plans they've created
+
+
+Things I would do differently if I started over:
+- 
