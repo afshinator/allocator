@@ -2,7 +2,7 @@ import React, { Component } from "react";
 
 const RED = "#C0392B";
 const BLACK = "#000";
-const FADED = "#AAA";
+const FADED = "#ccc";
 
 class LeftContainers extends Component {
   constructor(props) {
@@ -48,7 +48,9 @@ class LeftContainers extends Component {
   render() {
     const props = this.props;
     const readyForClick = false; // props.selectionStatus < 2;
-    const border = readyForClick ? { border: "1px dashed blue", borderRadius: "5px" } : {};
+    const border = readyForClick
+    ? { border: "1px dashed blue", borderRadius: "5px", cursor: 'pointer' }
+    : {};
 
     return (
       <ul className="list pl0 measure center" style={border}>
@@ -65,7 +67,7 @@ class LeftContainers extends Component {
               {x.id} - {x.container_number}
             </small>
           ) : (
-            <small onClick={this.handleLeftContainerClick} id={x.id}>
+            <small onClick={this.handleLeftContainerClick} id={x.id} className="pointer">
               {x.id} - {x.container_number}
             </small>
           );

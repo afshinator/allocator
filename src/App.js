@@ -3,6 +3,8 @@ import Header from "./components/header";
 import StatusBar from "./components/statusBar";
 import Selector from "./components/selector";
 
+const API_HOST = "http://localhost:8000";
+
 class App extends Component {
   constructor(props) {
     super(props);
@@ -10,6 +12,10 @@ class App extends Component {
     this.vesselClickHandler = this.vesselClickHandler.bind(this);
     this.addContainerToVessel = this.addContainerToVessel.bind(this);
     this.resetClickHandler = this.resetClickHandler.bind(this);
+    this.removeContainerClickHandler = this.removeContainerClickHandler.bind(this);
+    this.removeContainerFromVessel = this.removeContainerFromVessel.bind(this);
+    this.savePlanButtonHandler = this.savePlanButtonHandler.bind(this);
+    this.apiCall = this.apiCall.bind(this);
 
     this.state = {
       fetchedContainers: false, // did we get containers api data?
@@ -25,7 +31,6 @@ class App extends Component {
 
       selectionData: null, // When user selects something, this keeps track of it
       selectionStatus: 0 /* 0 - initial state,
-                           1 - api's loaded data without error, nothing selected by user yet
                            2 - container on the left clicked to be moved to a vessel
                            3 - container on right clicked to be removed from a vessel
                            4 - save currentPlan button clicked
@@ -34,74 +39,127 @@ class App extends Component {
   }
 
   componentDidMount() {
-    fetch("http://localhost:8000/containers")
-      .then(resp => resp.json()) // Transform the data into json
-      .then(data => {
+    this.apiCall( 'GET', '/containers',
+      (data)=> {
         console.log("containers ", data);
         this.setState({ containersList: data }, () => {
           this.setState({ fetchedContainers: true });
         });
-      })
-      .catch(err => {
-        this.setState({ fetchError: true });
-      });
+      },
+      (err) => { this.setState({ fetchError: true }); }
+    );
 
-    fetch("http://localhost:8000/vessels")
-      .then(resp => resp.json()) // Transform the data into json
-      .then(data => {
+    this.apiCall( 'GET', '/vessels',
+      (data)=> {
         console.log("vessels ", data);
         this.setState({ vesselsList: data }, () => {
           this.setState({ fetchedVessels: true });
         });
-      })
-      .catch(err => {
-        this.setState({ fetchError: true });
-      });
+      },
+      (err) => { this.setState({ fetchError: true }) }
+    );
 
-    fetch("http://localhost:8000/vessel_plans")
-      .then(resp => resp.json()) // Transform the data into json
-      .then(data => {
-        const fakeDataForNow = [
-          {
-            vessel_id: 1,
-            container_ids: [1, 2, 3]
-          },
-          {
-            vessel_id: 2,
-            container_ids: [4, 5, 6]
-          }
-        ];
-        console.log("vessels_plans ", data, fakeDataForNow);
-        this.setState({ plansList: fakeDataForNow, currentPlan: fakeDataForNow }, () => {
-          // this.setState({ plansList: data, currentPlan: data }, () => {
+    this.apiCall( 'GET', '/vessel_plans',
+      (data)=> {
+        console.log("vessel_plans ", data);
+
+        // const fakeDataForNow = [
+        //   {
+        //     vessel_id: 1,
+        //     container_ids: [1, 2, 3]
+        //   },
+        //   {
+        //     vessel_id: 2,
+        //     container_ids: [4, 5, 6]
+        //   }
+        // ];
+        // this.setState({ plansList: fakeDataForNow, currentPlan: fakeDataForNow }, () => {
+
+        this.setState({ currentPlan: data}, () => {
           this.setState({ fetchedPlans: true });
         });
+      },
+      (err) => { this.setState({ fetchError: true }) }
+    );
+  }
+
+  savePlanButtonHandler() {
+    fetch(API_HOST + "/vessel_plans", {
+      method: "POST",
+      body: JSON.stringify(this.state.currentPlan[0]),
+      mode: "no-cors",
+      redirect: "follow",
+      // headers: new Headers({
+      //   "Content-Type": "text/plain"
+      // })
+    })
+      // .then(resp => resp.json())
+      .then(data => {
+        console.log("SAVE DATA ", data);
       })
       .catch(err => {
-        this.setState({ fetchError: true });
+        console.log("caught POST error ", err);
       });
+  }
+
+  apiCall( method, endpoint, success, failure ) {
+    const url = API_HOST + endpoint;
+    if ( method !== 'POST' ) {
+      fetch( url )
+        .then( resp => resp.json() )
+        .then( success )
+        .catch( failure );
+    }
   }
 
   leftColClickHandler(container_id) {
-    console.log("in app told about left container click ", container_id);
     this.setState({ selectionStatus: 2, selectionData: container_id });
   }
 
-  vesselClickHandler(container_id) {
+  vesselClickHandler(vessel_id) {
     const state = this.state;
-    console.log("in app told about VESSEL click ", container_id);
     if (state.selectionStatus === 2) {
-      this.addContainerToVessel(state.selectionData, container_id);
+      this.addContainerToVessel(state.selectionData, vessel_id);
     }
+  }
+
+  removeContainerClickHandler(vessel_id, container_id) {
+    console.log("in app told about REMOVAL click ", container_id);
+    this.setState(
+      { selectionStatus: 3, selectionData: container_id },
+      () => {
+        let confirmDelete;
+        setTimeout(() => {
+          confirmDelete = window.confirm("Ready to remove containter " + container_id + " from vessel id " + vessel_id);
+          if (confirmDelete) {
+            this.removeContainerFromVessel(container_id);
+          }
+          this.setState({ selectionStatus: 0, selectionData: null });
+        });
+      },
+      500
+    ); // without this delay, I saw state was not propogating in time!
   }
 
   // If user clicks off app area, reset state
   resetClickHandler(e) {
-    console.log('CLICK ON RESET ', e.target.id );
-    const targetId = e.target.id;
-    if ( !targetId ) {
+    const validTarget = e.target.id;
+
+    if (!validTarget) {
       this.setState({ selectionStatus: 0, selectionData: null });
     }
+  }
+
+  removeContainerFromVessel(ctr) {
+    let newCurrentPlan = Object.assign([], this.state.currentPlan);
+
+    for (var i = 0; i < newCurrentPlan.length; i++) {
+      const index = newCurrentPlan[i].container_ids.indexOf(ctr);
+      if (index > -1) {
+        newCurrentPlan[i].container_ids.splice(index, 1);
+      }
+    }
+    this.setState({ currentPlan: newCurrentPlan });
   }
 
   addContainerToVessel(ctr, vsl) {
@@ -109,20 +167,18 @@ class App extends Component {
 
     // find the index in the data structure where vessel_id vsl exists
     const vsl_index = state.currentPlan.reduce((acc, current, i) => {
-      console.log("checking ", typeof current.vessel_id, typeof vsl);
       return current.vessel_id === vsl * 1 // multiply by 1 turns a string into a digit
         ? i
         : acc;
     }, null);
 
-    let newCurrentPlan = Object.assign( [], state.currentPlan );
+    let newCurrentPlan = Object.assign([], state.currentPlan);
 
     // if currentPlan doesnt have any containers for this vessel
     if (vsl_index === null) {
       const newEntry = { vessel_id: vsl, container_ids: [ctr] };
-      newCurrentPlan.push( newEntry );
-    }
-    else {
+      newCurrentPlan.push(newEntry);
+    } else {
       newCurrentPlan[vsl_index].container_ids.push(ctr);
     }
     this.setState({ selectionStatus: 0, currentPlan: newCurrentPlan });
@@ -133,14 +189,15 @@ class App extends Component {
     const allFetchingDone = this.state.fetchedContainers && this.state.fetchedVessels && this.state.fetchedPlans;
 
     return (
-      <div className="app" onClick={ this.resetClickHandler }>
+      <div className="app" onClick={this.resetClickHandler}>
         <Header />
-        <StatusBar {...this.state} />
+        <StatusBar {...this.state} btnHandler={this.savePlanButtonHandler} />
         {allFetchingDone ? (
           <Selector
             {...this.state}
             leftColClickHandler={this.leftColClickHandler}
             vesselClickHandler={this.vesselClickHandler}
+            removeHandler={this.removeContainerClickHandler}
           />
         ) : null}
       </div>

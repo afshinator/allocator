@@ -1,17 +1,18 @@
 import React, { Component } from "react";
 
+const RED = "#C0392B";
+
 class RightVessels extends Component {
   constructor(props) {
     super(props);
-    this.state = {};
+    this.state = {
+      activeState: false,
+      activeContainerId: null
+    };
 
     this.vesselClickHandler = this.vesselClickHandler.bind(this);
-    this.handleRightContainerClick = this.handleRightContainerClick.bind(this);
   }
 
-  handleRightContainerClick(e) {
-    const container_id = e.target.id;
-  }
 
   // Get either a vessel or container details from its respective list
   getObjectFromListById(list, id) {
@@ -35,9 +36,32 @@ class RightVessels extends Component {
   }
 
   vesselClickHandler(e) {
-    const vessel_id = e.target.id * 1;
-    console.log("IN vessel click ", vessel_id);
-    this.props.vesselClickHandler(vessel_id);
+    const props = this.props;
+    const id = e.target.id;
+    let vessel_id;
+
+    // sometimes the click is on a border or otherwise ill defined
+    if (!id) return;
+
+    if (id.indexOf("_") === -1) {
+      // no underline in id, so a click on a vessel
+      vessel_id = id * 1;
+      if (props.selectionStatus === 2) {
+        // we must be adding a new container
+        this.props.vesselClickHandler(vessel_id);
+      }
+      return;
+    } else {
+      // click was on a container
+      vessel_id = id.replace(/(^\d+)(.+$)/i, "$1") * 1; // grab first number
+      const container_id = id.substring(id.indexOf("_") + 1) * 1;
+      if ( props.selectionStatus === 2 ) {
+        this.props.vesselClickHandler(vessel_id);
+        return;
+      }
+      this.setState({ activeState: true, activeContainerId : container_id })
+      props.removeHandler(vessel_id, container_id);
+    }
   }
 
   renderPlan() {
@@ -47,7 +71,11 @@ class RightVessels extends Component {
     return props.vesselsList.map((vsl, i) => {
       const vesselsContainers = this.vesselsContainers(vsl.id, props.currentPlan);
       const vesselTitle = (
-        <li key={i} className="lh-copy pv3 ba bl-0 bt-0 br-0 b--dotted b--black-30" onClick={this.vesselClickHandler}>
+        <li
+          key={i}
+          className="lh-copy pv3 ba bl-0 bt-0 br-0 b--dotted b--black-30 pointer"
+          onClick={this.vesselClickHandler}
+        >
           <small id={vsl.id}>
             {vsl.id} - {vsl.name}
           </small>
@@ -58,8 +86,13 @@ class RightVessels extends Component {
         // if no containers assigned to this vessel
         return vesselTitle;
       } else {
+        const isInMiddleOfDeletion = (props.selectionStatus === 3);
         return (
-          <li key={i} className="lh-copy pv3 ba bl-0 bt-0 br-0 b--dotted b--black-30" onClick={this.vesselClickHandler}>
+          <li
+            key={i}
+            className="lh-copy pv3 ba bl-0 bt-0 br-0 b--dotted b--black-30 pointer"
+            onClick={this.vesselClickHandler}
+          >
             <small id={vsl.id}>
               {"   "}
               {vsl.id} - {vsl.name}
@@ -67,9 +100,13 @@ class RightVessels extends Component {
             <ul>
               {vesselsContainers.map((ctr_id, j) => {
                 const ctr_num = this.getObjectFromListById(props.containersList, ctr_id).container_number;
+                const color =  ( isInMiddleOfDeletion && ctr_id === props.selectionData )
+                  ? { color: RED }
+                  : { };
+
                 return (
                   <li key={i * 10 + j} className="avenir lh-copy pv1">
-                    <small id={"sometihng"}>
+                    <small id={vsl.id + "_" + ctr_id} style={color}>
                       {ctr_id} - {ctr_num}
                     </small>
                   </li>
